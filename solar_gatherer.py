@@ -2,6 +2,7 @@
 
 import argparse
 import configparser
+import datetime
 import logging
 import psycopg2
 import pysolarmanv5
@@ -19,19 +20,21 @@ class Gatherer():
         # Inverter configuration
         if "inverter" in config:
             self.DataStickIP = config["inverter"].get("inverter_ip")
-            self.DataStickSerial = int(config["general"].get("inverter_serial"))
+            self.DataStickSerial = int(config["inverter"].get("inverter_serial"))
         else:
-            L.warning("No 'general' section in config, using defaults")
+            L.warning("No 'inverter' section in config, using defaults")
             self.DataStickIP = "0.0.0.0"
             self.DataStickSerial = 123456789
 
         # Database configuration
         if "storage" in config:
-            self.DBHost = config["storage"].get("storage_ip")
-            self.DBPort = config["storage"].get("storage_port")
-            self.DBUser = config["storage"].get("storage_user")
-            self.DBName =config["storage"].get("storage_db_name")
-            self.DBPassword = config["storage"].get("storage_password")
+            self.DBConnInfo = {
+                'dbname': config["storage"].get("storage_db_name"),
+                'user': config["storage"].get("storage_user"),
+                'password': config["storage"].get("storage_password"),
+                'host': config["storage"].get("storage_ip"),
+                'port': config["storage"].get("storage_port"),
+            }
 
         L.info(
             "Datastick configuration:\n stick_ip={stick_ip}\n stick_serial={stick_serial}".format(
@@ -40,8 +43,8 @@ class Gatherer():
         )
 
         L.info(
-            "Storage configuration:\n db_name={db_name}\n user={db_user}\n password=****\n host={db_host}\n port={db_port}".format(
-                db_name=self.DBName, db_user=self.DBUser, db_host=self.DBHost, db_port=self.DBPort
+            "Storage configuration:\n{db_info}".format(
+                db_info=self.DBConnInfo,
             )
         )
 
@@ -51,17 +54,23 @@ class Gatherer():
             "power_production": int(0x0586)
         }
 
-    def gather_data(self):
+    def gather_data(self) -> dict:
         inverter_link = pysolarmanv5.PySolarmanV5(self.DataStickIP, self.DataStickSerial, port=8899)
         keep_asking = True
         failed_attempts = 0
 
         while keep_asking:
             try:
-                power_consumption_kw = inverter_link.read_holding_registers(self.Registers["power_consumption"], 1)[0] * 0.01
+                power_consumption_kw = inverter_link.read_holding_registers(self.Registers["power_consumption"], 14)[13] * 0.01
                 power_production_kw = inverter_link.read_holding_registers(self.Registers["power_production"], 1)[0] * 0.01
-                print("Current consumption: {}\n".format(power_consumption_kw))
-                print("Current production: {}\n".format(power_production_kw))
+
+                data = {
+                    "timestamp": int(datetime.datetime.utcnow().timestamp()),
+                    "power_consumption": power_consumption_kw,
+                    "power_production": power_production_kw
+                }
+                print("Current consumption: {}\n".format(data["timestamp"]))
+                print("Current production: {}\n".format(data["power_consumption"]))
                 keep_asking = False
             except Exception as e:
                 L.warning("Exception while trying to reach inverter. Cause: {}.".format(e))
@@ -70,10 +79,28 @@ class Gatherer():
                 if failed_attempts > 15:
                     L.info("Too many attempts failed, giving up.")
                     keep_asking = False
+        return data
 
     def write_data(self):
-        with psycopg2.connect("dbname={db_name} user={dbuser}") as connection:
-            pass
+        data_to_insert = self.gather_data()
+        with psycopg2.connect(**self.DBConnInfo) as connection:
+            with connection.cursor() as cursor:
+                try:
+                    insert_query = """
+                    INSERT INTO power_data (timestamp, power_consumption, power_production)
+                    VALUES (%s, %s, %s)
+                    """
+                    cursor.execute(insert_query, (data_to_insert["timestamp"], data_to_insert["power_consumption"], data_to_insert["power_production"]))
+                    connection.commit()
+                    L.info("Data inserted successfully.")
+                except (Exception, psycopg2.DatabaseError) as e:
+                    L.error("Error while trying to insert data: {}".format(e))
+                    connection.rollback()
+
+
+        # Connection is not closed by the context https://www.psycopg.org/docs/connection.html
+        connection.close()
+
 
 if __name__ == "__main__":
     cmd_parser = argparse.ArgumentParser(description="Provide configuration path.")
@@ -81,4 +108,4 @@ if __name__ == "__main__":
     path = cmd_parser.parse_args()
 
     app = Gatherer(path.config)
-    app.gather_data()
+    app.write_data()
