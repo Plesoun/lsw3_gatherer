@@ -69,8 +69,8 @@ class Gatherer():
                     "power_consumption": power_consumption_kw,
                     "power_production": power_production_kw
                 }
-                print("Current consumption: {}\n".format(data["timestamp"]))
-                print("Current production: {}\n".format(data["power_consumption"]))
+                L.info("Current consumption: {}\n".format(data["timestamp"]))
+                L.info("Current production: {}\n".format(data["power_consumption"]))
                 keep_asking = False
             except Exception as e:
                 L.warning("Exception while trying to reach inverter. Cause: {}.".format(e))

@@ -28,6 +28,8 @@ This is intended to run in docker, so no requirements.txt provided, build the im
 
 `docker build -t gatherer .`
 
-Run via
+Run via:
 
-`docker run -v /your/configfile/location:/conf gatherer`
+`docker run --rm -v /your/configfile/location.conf:/conf/gatherer.conf gatherer`
+
+remember, If you are using the storage, make sure it is accessible from the container, use `--network host` if needed

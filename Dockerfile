@@ -7,11 +7,12 @@ RUN set -ex \
 	&& apt-get -y upgrade
 
 RUN pip3 install \
-	pysolarmanv5 
+	pysolarmanv5 \
+    psycopg2-binary
 
 RUN mkdir -p /app/gatherer
 
 COPY . /app/gatherer
 
 WORKDIR /app/gatherer
-CMD ["python3", "/app/gatherer/solar_gatherer.py"]
+CMD ["python3", "/app/gatherer/solar_gatherer.py", "-c", "/conf/gatherer.conf"]
