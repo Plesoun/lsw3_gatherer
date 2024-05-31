@@ -10,9 +10,16 @@ Use a configuration file. Example:
 `local.conf`
 
 ```
-[general]
+[inverter]
 inverter_ip=197.16.125.120
 inverter_serial=2335521351
+
+[storage]
+storage_ip=197.16.125.121
+storage_port=5432
+storage_db_name=mydb
+storage_user=myuser
+storage_password=mypass
 ```
 
 ## Building and running the script
