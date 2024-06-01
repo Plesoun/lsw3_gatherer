@@ -61,7 +61,7 @@ class Gatherer():
 
         while keep_asking:
             try:
-                power_consumption_kw = inverter_link.read_holding_registers(self.Registers["power_consumption"], 14)[13] * 0.01
+                power_consumption_kw = inverter_link.read_holding_registers(self.Registers["power_consumption"], 14)[0] * 0.01
                 power_production_kw = inverter_link.read_holding_registers(self.Registers["power_production"], 1)[0] * 0.01
 
                 data = {
